@@ -4,6 +4,7 @@ import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+from tkinter.colorchooser import askcolor
 
 window = tk.Tk()
 
@@ -15,8 +16,12 @@ items = []
 player_dict = {}
 list_items = None
 search_bar = None
+search_text = None
 save_path = ""
 dropdown = None
+bar_color = None
+color_display = None
+
 
 def block_selected(event):
     global listbox, message
@@ -32,10 +37,13 @@ def open_save_pressed(event):
         stats_data = None
         items = []
         return
-    populate_listbox(save_path)
+    populate_listbox(save_path, filter_text="", category="minecraft:used")
 
-def populate_listbox(path, filter_text = "", category = "minecraft:used"):
-    global player_dict, stats_data, items, listbox, dropdown
+def populate_listbox(path, **kwargs):
+    global player_dict, stats_data, items, listbox, dropdown, search_bar, search_text
+    category = kwargs.get("category", dropdown.cget("text"))
+    filter_text = kwargs.get("filter_text", search_text.get())
+    print(filter_text)
     player_stats = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     p_dict = {}
     all_items = []
@@ -55,19 +63,86 @@ def populate_listbox(path, filter_text = "", category = "minecraft:used"):
             except KeyError:
                 cut_name = player.split(".")[0]
                 p_dict[cut_name] = None
-    dropdown.set_menu(all_categories[0], *all_categories)
+    if kwargs.get("category") is not None:
+        dropdown.set_menu(all_categories[0], *all_categories)
     player_dict = p_dict
     all_items.sort()
     listbox.config(listvariable=tk.Variable(value=all_items))
     items = all_items
 
+def custom_category_formatting(formatted_item):
+    format_categories = {
+        "Aviate One Cm": "Distance Traveled by Elytra",
+        "Bell Ring": "Bells Rung",
+        "Boat One Cm": "Distance by Boat",
+        "Climb One Cm": "Distance Climbed Ladders/Vines",
+        "Crouch One Cm": "Distance Crouched",
+        "Damage Dealt": "Damage Dealt by Melee Attacks",
+        "Drop": "Items Dropped",
+        "Eat Cake Slice": "Cake Slices Eaten",
+        "Enchant Item": "Number of Items Enchanted",
+        "Fall One Cm": "Distance Fallen",
+        "Fill Cauldron": "Cauldrons Filled",
+        "Fly One Cm": "Distance Flown",
+        "Horse One Cm": "Distance Traveled by Horse",
+        "Inspect Dispenser": "Number of Dispenser Interactions",
+        "Inspect Dropper": "Number of Dropper Interactions",
+        "Inspect Hopper": "Number of Hopper Interactions",
+        "Interact With Anvil": "Number of Anvil Interactions",
+        "Interact With Beacon": "Number of Beacon Interactions",
+        "Interact With Blast Furnace": "Number of Blast Furnace Interactions",
+        "Interact With Brewingstand": "Number of Brewing Stand Interactions",
+        "Interact With Campfire": "Number of Campfire Interactions",
+        "Interact With Cartography Table": "Number of Cartography Table Interactions",
+        "Interact With Crafting Table": "Number of Crafting Table Interactions",
+        "Interact With Furnace": "Number of Furnace Interactions",
+        "Interact With Grindstone": "Number of Grindstone Interactions",
+        "Interact With Loom": "Number of Loom Interactions",
+        "Interact With Smithing Table": "Number of Smithing Table Interactions",
+        "Interact With Smoker": "Number of Smoker Interactions",
+        "Interact With Stonecutter": "Number of Stonecutter Interactions",
+        "Jump": "Jumps Performed",
+        "Leave Game": "Number of Games Quit",
+        "Minecart One Cm": "Distance Traveled by Minecart",
+        "Mob Kills": "Number of Mob Kills",
+        "Open Barrel": "Number of Barrel Interactions",
+        "Open Chest": "Number of Chest Interactions",
+        "Open Enderchest": "Number of Ender Chest Interactions",
+        "Open Shulker Box": "Number of Shulker Box Interactions",
+        "Play Noteblock": "Number of Note Blocks Hit",
+        "Play Record": "Number of Music Discs Played",
+        "Play Time": "Total Amount of Time Played",
+        "Pot Flower": "Number of Plants Potted",
+        "Raid Trigger": "Raids Triggered",
+        "Raid Win": "Raids Won",
+        "Sleep In Bed": "Times Slept in Beds",
+        "Sneak Time": "Total Crouch Time",
+        "Sprint One Cm": "Distance Traveled While Sprinting",
+        "Strider One Cm": "Distance Traveled by Strider",
+        "Swim One Cm": "Distance Swum",
+        "Talked To Villager": "Number of Villager Interactions",
+        "Target Hit": "Number of Targets Hit",
+        "Time Since Death": "Time Since Last Death",
+        "Time Since Rest": "Time Since Last Rest",
+        "Total World Time": "Total Amount of Time Played",
+        "Traded With Villager": "Number of Villager Trades Performed",
+        "Tune Noteblock": "Number of Note Blocks Tuned",
+        "Use Cauldron": "Number of Bottles Filled with Cauldron",
+        "Walk On Water One Cm": "Distance Traveled While Bobbing Up and Down",
+        "Walk One Cm": "Distance Walked",
+        "Walk Under Water One Cm": "Distance Walked Underwater"
+    }
+    return format_categories.get(formatted_item, f"{formatted_item}" + " by player")
+
 def plot_data(event):
-    global player_dict, message
+    global player_dict, message, dropdown, bar_color
     fig, ax = plt.subplots()
     players = []
     values = []
     item = message.cget("text")
-    print(item)
+    formatted_array = item.split(":")[1].split("_")
+    extra_s = "" if formatted_array[-1][-1] == 's' else "s"
+    formatted_item = " ".join([w.capitalize() for w in formatted_array])
     for player in player_dict:
         players.append(player)
         try:
@@ -77,16 +152,23 @@ def plot_data(event):
 
     print(f"Players: {players}")
     print(f"Values: {values}")
-    ax.bar(players, values)
+    ax.bar(players, values, color=bar_color)
     ax.set_ylabel("Number of Uses")
     ax.set_xlabel("Player")
-    ax.set_title(f"{item} uses by player")
+
+    category = dropdown.cget("text").split(":")[1].capitalize()
+
+    title_categories = {
+        'Killed_by': f"Number of Deaths to {formatted_item}{extra_s} by player",
+        'Custom': custom_category_formatting(formatted_item)
+    }
+    ax.set_title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category} by player"))
     ax.tick_params(axis='x', labelsize=8)
     plt.show()
 
-def search_feature(search_text):
+def search_feature(text):
     global save_path
-    populate_listbox(save_path, filter_text=search_text.get())
+    populate_listbox(save_path, filter_text=text.get())
 
 def clear_search_bar(event):
     global search_bar
@@ -95,6 +177,13 @@ def clear_search_bar(event):
 def change_category(category):
     global save_path
     populate_listbox(save_path, category=category.get())
+
+def choose_color():
+    global bar_color, color_display
+    color = askcolor(title="Choose Bar Color")
+    bar_color = color[1]
+    color_display.configure(bg=color[1])
+
 
 def main():
 
@@ -116,7 +205,7 @@ def main():
 
     global message
     message = ttk.Label(window, text="Hello, World!")
-    message.grid(column=0, row=0)
+    message.grid(column=0, row=0, pady=10)
 
     global list_items
     list_items = tk.Variable(value=blocks)
@@ -137,13 +226,13 @@ def main():
     plot_button.bind("<Button>", plot_data)
     plot_button.grid(column=0, row=4)
 
-    global search_bar
+    global search_bar, search_text
     search_text = tk.StringVar()
     search_label = tk.Label(window, text="Search for Item:")
     search_text.trace("w", lambda name, index, mode, var=search_text: search_feature(search_text))
     search_bar = ttk.Entry(window, textvariable=search_text)
     search_bar.bind("<Control-BackSpace>", clear_search_bar)
-    search_label.grid(column=1, row=1)
+    search_label.grid(column=1, row=1, pady=10)
     search_bar.grid(column=1, row=2)
 
     global dropdown
@@ -152,6 +241,13 @@ def main():
     dropdown = ttk.OptionMenu(window, active_stat, "", *[])
     dropdown.grid(column=1, row=3)
 
+    color_button = tk.Button(window, text="Change Bar Color", command=choose_color)
+    color_button.grid(column=2, row=0, pady=10)
+
+    global color_display
+    color_display = tk.Frame(window, bg="#1f77b4", height=50, width=200)
+    color_display.grid(column=2, row=1)
+
     window.grid_rowconfigure(1, weight=0)
 
     window.mainloop()
@@ -159,5 +255,3 @@ def main():
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
