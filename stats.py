@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import json
 import os
 import tkinter as tk
@@ -26,7 +27,7 @@ color_display = None
 def block_selected(event):
     global listbox, message
     selected_index = listbox.curselection()
-    message.config(text=f"{listbox.get(selected_index)}")
+    message.config(text=f"Selected Item: {listbox.get(selected_index)}")
 
 def open_save_pressed(event):
     global player_dict, stats_data, items, listbox, save_path
@@ -132,14 +133,126 @@ def custom_category_formatting(formatted_item):
         "Walk One Cm": "Distance Walked",
         "Walk Under Water One Cm": "Distance Walked Underwater"
     }
-    return format_categories.get(formatted_item, f"{formatted_item}" + " by player")
+    return format_categories.get(formatted_item, f"{formatted_item}")
+
+def process_values(values, category):
+    if 'One Cm' in category:
+        return [x/100 for x in values]
+    elif 'Time' in category:
+        return [x/20 for x in values]
+    elif 'Damage' in category:
+        return [x/10 for x in values]
+    else:
+        return values
+
+def format_ylabel(formatted_item, category):
+    print(category)
+    if category == "Dropped":
+        return "Items Dropped"
+    elif category == "Crafted":
+        return "Items Crafted"
+    elif category == "Killed":
+        return "Entities Killed"
+    elif category == "Mined":
+        return "Blocks Broken"
+    elif category == "Killed_by":
+        return "Number of Deaths"
+    elif category == "Picked_up":
+        return "Items Picked Up"
+    elif category == "Used":
+        return "Items Used"
+    elif category == "Broken":
+        return "Items Broken"
+
+    ylabels = {
+        "Dropped": "Items Dropped",
+        "Crafted": "Items Crafted",
+        "Killed": "Entities Killed",
+        "Mined": "Blocks Broken",
+        "Killed_by": "Number of Deaths",
+        "Picked_up": "Items Picked Up",
+        "Used": "Items Used",
+        "Broken": "Items Broken",
+        "Custom": "custom"
+    }
+
+    special_ylabels = {
+        "Aviate One Cm": "Distance Traveled (Blocks)",
+        "Bell Ring": "Bells Rung",
+        "Boat One Cm": "Distance Traveled (Blocks)",
+        "Climb One Cm": "Distance Climbed (Blocks)",
+        "Crouch One Cm": "Distance Crouched (Blocks)",
+        "Drop": "Items Dropped",
+        "Eat Cake Slice": "Cake Slices Eaten",
+        "Enchant Item": "Items Enchanted",
+        "Fall One Cm": "Distance Fallen (Blocks)",
+        "Fill Cauldron": "Cauldrons Filled",
+        "Fly One Cm": "Distance Flown (Blocks)",
+        "Horse One Cm": "Distance Traveled (Blocks)",
+        "Inspect Dispenser": "Dispenser Interactions",
+        "Inspect Dropper": "Dropper Interactions",
+        "Inspect Hopper": "Hopper Interactions",
+        "Interact With Anvil": "Anvil Interactions",
+        "Interact With Beacon": "Beacon Interactions",
+        "Interact With Blast Furnace": "Blast Furnace Interactions",
+        "Interact With Brewingstand": "Brewing Stand Interactions",
+        "Interact With Campfire": "Campfire Interactions",
+        "Interact With Cartography Table": "Cartography Table Interactions",
+        "Interact With Crafting Table": "Crafting Table Interactions",
+        "Interact With Furnace": "Furnace Interactions",
+        "Interact With Grindstone": "Grindstone Interactions",
+        "Interact With Loom": "Loom Interactions",
+        "Interact With Smithing Table": "Smithing Table Interactions",
+        "Interact With Smoker": "Smoker Interactions",
+        "Interact With Stonecutter": "Stonecutter Interactions",
+        "Jump": "Jumps Performed",
+        "Leave Game": "Games Quit",
+        "Minecart One Cm": "Distance Traveled (Blocks)",
+        "Mob Kills": "Mob Kills",
+        "Open Barrel": "Barrel Interactions",
+        "Open Chest": "Chest Interactions",
+        "Open Enderchest": "Ender Chest Interactions",
+        "Open Shulker Box": "Shulker Box Interactions",
+        "Play Noteblock": "Note Blocks Hit",
+        "Play Record": "Music Discs Played",
+        "Play Time": "Time Played (s)",
+        "Pot Flower": "Plants Potted",
+        "Raid Trigger": "Raids Triggered",
+        "Raid Win": "Raids Won",
+        "Sleep In Bed": "Times Slept",
+        "Sneak Time": "Crouch Time (s)",
+        "Sprint One Cm": "Distance Traveled (Blocks)",
+        "Strider One Cm": "Distance Traveled (Blocks)",
+        "Swim One Cm": "Distance Swum (Blocks)",
+        "Talked To Villager": "Villager Interactions",
+        "Target Hit": "Targets Hit",
+        "Time Since Death": "Time (s)",
+        "Time Since Rest": "Time Since Last Rest (s)",
+        "Total World Time": "Time Played (s)",
+        "Traded With Villager": "Trades Performed",
+        "Tune Noteblock": "Note Blocks Tuned",
+        "Use Cauldron": "Cauldron Uses",
+        "Walk On Water One Cm": "Distance Traveled (Blocks)",
+        "Walk One Cm": "Distance Walked (Blocks)",
+        "Walk Under Water One Cm": "Distance Walked (Blocks)"
+    }
+
+    ylabel = ylabels.get(category)
+
+    if ylabel == "custom":
+        ylabel = special_ylabels.get(formatted_item, f"{formatted_item}")
+
+    return ylabel
+
+
 
 def plot_data(event):
     global player_dict, message, dropdown, bar_color
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(num="Minecraft Stats Viewer")
     players = []
     values = []
     item = message.cget("text")
+    item = item.split("Selected Item: ")[1]
     formatted_array = item.split(":")[1].split("_")
     extra_s = "" if formatted_array[-1][-1] == 's' else "s"
     formatted_item = " ".join([w.capitalize() for w in formatted_array])
@@ -150,20 +263,24 @@ def plot_data(event):
         except (KeyError, TypeError):
             values.append(0)
 
-    print(f"Players: {players}")
-    print(f"Values: {values}")
-    ax.bar(players, values, color=bar_color)
-    ax.set_ylabel("Number of Uses")
-    ax.set_xlabel("Player")
-
     category = dropdown.cget("text").split(":")[1].capitalize()
-
     title_categories = {
-        'Killed_by': f"Number of Deaths to {formatted_item}{extra_s} by player",
+        'Killed_by': f"Number of Deaths to {formatted_item}{extra_s}",
+        'Picked_up': f"Number of {formatted_item}{extra_s} Picked Up",
         'Custom': custom_category_formatting(formatted_item)
     }
-    ax.set_title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category} by player"))
+
+    processed_values = process_values(values, formatted_item)
+    print(f"Values: {processed_values}")
+    ylabel = format_ylabel(formatted_item, category)
+
+    ax.bar(players, processed_values, color=bar_color)
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("Player")
+    ax.set_title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category}") + " By Player")
     ax.tick_params(axis='x', labelsize=8)
+    ax.get_yaxis().set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+
     plt.show()
 
 def search_feature(text):
@@ -204,7 +321,7 @@ def main():
     # WINDOW CONTENTS
 
     global message
-    message = ttk.Label(window, text="Hello, World!")
+    message = ttk.Label(window, text="Welcome to Minecraft Stats Viewer!")
     message.grid(column=0, row=0, pady=10)
 
     global list_items
@@ -219,11 +336,11 @@ def main():
 
     global open_save_button
     open_save_button = tk.Button(window, text="Open Save Folder")
-    open_save_button.bind("<Button>", open_save_pressed)
+    open_save_button.bind("<ButtonRelease>", open_save_pressed)
     open_save_button.grid(column=0, row=3)
 
     plot_button = tk.Button(window, text="Plot Data")
-    plot_button.bind("<Button>", plot_data)
+    plot_button.bind("<ButtonRelease>", plot_data)
     plot_button.grid(column=0, row=4)
 
     global search_bar, search_text
