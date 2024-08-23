@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter.colorchooser import askcolor
+import requests
 
 window = tk.Tk()
 
@@ -15,6 +16,7 @@ stats_data = None
 open_save_button = None
 items = []
 player_dict = {}
+player_uuids = {}
 list_items = None
 search_bar = None
 search_text = None
@@ -30,18 +32,20 @@ def block_selected(event):
     message.config(text=f"Selected Item: {listbox.get(selected_index)}")
 
 def open_save_pressed(event):
-    global player_dict, stats_data, items, listbox, save_path
+    global player_dict, player_uuids, stats_data, items, listbox, save_path
     try:
         save_path = filedialog.askdirectory() + "/stats"
     except FileNotFoundError:
         player_dict = {}
+        player_uuids = {}
         stats_data = None
         items = []
         return
+    player_dict = {}
     populate_listbox(save_path, filter_text="", category="minecraft:used")
 
 def populate_listbox(path, **kwargs):
-    global player_dict, stats_data, items, listbox, dropdown, search_bar, search_text
+    global player_dict, player_uuids, stats_data, items, listbox, dropdown, search_bar, search_text
     category = kwargs.get("category", dropdown.cget("text"))
     filter_text = kwargs.get("filter_text", search_text.get())
     print(filter_text)
@@ -66,7 +70,11 @@ def populate_listbox(path, **kwargs):
                 p_dict[cut_name] = None
     if kwargs.get("category") is not None:
         dropdown.set_menu(all_categories[0], *all_categories)
-    player_dict = p_dict
+    player_uuids = p_dict
+    if len(player_dict.keys()) == 0:
+        for uuid in p_dict.keys():
+            data = requests.get(f"https://sessionserver.mojang.com/session/minecraft/profile/{uuid}").json()
+            player_dict[data["name"]] = player_uuids[uuid]
     all_items.sort()
     listbox.config(listvariable=tk.Variable(value=all_items))
     items = all_items
@@ -247,7 +255,7 @@ def format_ylabel(formatted_item, category):
 
 
 def plot_data(event):
-    global player_dict, message, dropdown, bar_color
+    global player_dict, player_uuids, message, dropdown, bar_color
     fig, ax = plt.subplots(num="Minecraft Stats Viewer")
     players = []
     values = []
@@ -256,12 +264,13 @@ def plot_data(event):
     formatted_array = item.split(":")[1].split("_")
     extra_s = "" if formatted_array[-1][-1] == 's' else "s"
     formatted_item = " ".join([w.capitalize() for w in formatted_array])
-    for player in player_dict:
-        players.append(player)
+    for player in player_uuids:
         try:
-            values.append(player_dict[player][item])
+            values.append(player_uuids[player][item])
         except (KeyError, TypeError):
             values.append(0)
+    for player in player_dict:
+        players.append(player)
 
     category = dropdown.cget("text").split(":")[1].capitalize()
     title_categories = {
@@ -307,8 +316,8 @@ def main():
     blocks = []
 
     window.title("Minecraft Stats")
-    window_width = 800
-    window_height = 600
+    window_width = 700
+    window_height = 400
 
     screen_width = window.winfo_screenwidth()
     screen_height = window.winfo_screenheight()
@@ -318,54 +327,71 @@ def main():
 
     window.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
 
-    # WINDOW CONTENTS
-
+    # Top Message
     global message
     message = ttk.Label(window, text="Welcome to Minecraft Stats Viewer!")
-    message.grid(column=0, row=0, pady=10)
+    message.pack(pady=10)
 
+
+    # Frame for Item List, Color Picker, and Search Bar
+    big_frame = tk.Frame(window, borderwidth=1, relief="ridge")
     global list_items
     list_items = tk.Variable(value=blocks)
 
     global listbox
-    listbox_frame = tk.Frame(window)
-    listbox_frame.grid(column=0, row=1, rowspan=2, sticky='nsew')
-    listbox = tk.Listbox(listbox_frame, listvariable=list_items, width=50, selectmode=tk.SINGLE)
+    listbox = tk.Listbox(big_frame, listvariable=list_items, width=50, selectmode=tk.SINGLE)
     listbox.bind("<<ListboxSelect>>", block_selected)
-    listbox.pack()
+    listbox.grid(column=1, row=0, pady=10)
 
-    global open_save_button
-    open_save_button = tk.Button(window, text="Open Save Folder")
-    open_save_button.bind("<ButtonRelease>", open_save_pressed)
-    open_save_button.grid(column=0, row=3)
-
-    plot_button = tk.Button(window, text="Plot Data")
-    plot_button.bind("<ButtonRelease>", plot_data)
-    plot_button.grid(column=0, row=4)
-
+    # Search bar and Dropdown frame
     global search_bar, search_text
+    search_frame = tk.Frame(big_frame)
     search_text = tk.StringVar()
-    search_label = tk.Label(window, text="Search for Item:")
+    search_label = tk.Label(search_frame, text="Search for Item:")
     search_text.trace("w", lambda name, index, mode, var=search_text: search_feature(search_text))
-    search_bar = ttk.Entry(window, textvariable=search_text)
+    search_bar = ttk.Entry(search_frame, textvariable=search_text)
     search_bar.bind("<Control-BackSpace>", clear_search_bar)
-    search_label.grid(column=1, row=1, pady=10)
-    search_bar.grid(column=1, row=2)
+    search_label.grid(column=0, row=0, pady=10)
+    search_bar.grid(column=0, row=1)
 
+    # Dropdown
     global dropdown
     active_stat = tk.StringVar()
     active_stat.trace("w", lambda name, index, mode, var=active_stat: change_category(active_stat))
-    dropdown = ttk.OptionMenu(window, active_stat, "", *[])
-    dropdown.grid(column=1, row=3)
+    dropdown_label = tk.Label(search_frame, text="Choose Criterion:")
+    dropdown = ttk.OptionMenu(search_frame, active_stat, "", *[])
+    dropdown_label.grid(column=0, row=2, pady=10)
+    dropdown.grid(column=0, row=3)
 
-    color_button = tk.Button(window, text="Change Bar Color", command=choose_color)
-    color_button.grid(column=2, row=0, pady=10)
+    # Packing search bar and dropdown into the big frame
+    search_frame.grid(column=0, row=0, padx=10)
+
+    # Color Picker Frame
+    color_frame = tk.Frame(big_frame)
+    color_button = tk.Button(color_frame, text="Change Bar Color", command=choose_color)
+    color_button.grid(column=0, row=0, pady=10)
 
     global color_display
-    color_display = tk.Frame(window, bg="#1f77b4", height=50, width=200)
-    color_display.grid(column=2, row=1)
+    color_display = tk.Frame(color_frame, bg="#1f77b4", height=50, width=125)
+    color_display.grid(column=0, row=1)
 
-    window.grid_rowconfigure(1, weight=0)
+    # Packing color picker into the big frame
+    color_frame.grid(column=2, row=0, padx=10)
+
+    # Packing the Big Frame
+    big_frame.pack()
+
+    # Open Save and Plot Button
+    global open_save_button
+    open_save_button = tk.Button(window, text="Open Save Folder")
+    open_save_button.bind("<ButtonRelease>", open_save_pressed)
+    open_save_button.pack(pady=10)
+
+    plot_button = tk.Button(window, text="Plot Data")
+    plot_button.bind("<ButtonRelease>", plot_data)
+    plot_button.pack()
+
+    # window.grid_rowconfigure(1, weight=0)
 
     window.mainloop()
 
