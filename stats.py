@@ -283,12 +283,18 @@ def plot_data(event):
     print(f"Values: {processed_values}")
     ylabel = format_ylabel(formatted_item, category)
 
-    ax.bar(players, processed_values, color=bar_color)
+    bars = ax.bar(players, processed_values, color=bar_color)
     ax.set_ylabel(ylabel)
     ax.set_xlabel("Player")
     ax.set_title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category}") + " By Player")
     ax.tick_params(axis='x', labelsize=8)
     ax.get_yaxis().set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+
+    # Adding numbers to top of bar
+
+    for bar in bars:
+        yheight = bar.get_height()
+        plt.text(bar.get_x() + (bar.get_width() / 2), yheight + 0.1, yheight, horizontalalignment="center", fontsize=12)
 
     plt.show()
 
