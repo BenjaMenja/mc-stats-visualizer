@@ -48,7 +48,6 @@ def populate_listbox(path, **kwargs):
     global player_dict, player_uuids, stats_data, items, listbox, dropdown, search_bar, search_text
     category = kwargs.get("category", dropdown.cget("text"))
     filter_text = kwargs.get("filter_text", search_text.get())
-    print(filter_text)
     player_stats = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     p_dict = {}
     all_items = []
@@ -77,6 +76,7 @@ def populate_listbox(path, **kwargs):
             player_dict[data["name"]] = player_uuids[uuid]
     all_items.sort()
     listbox.config(listvariable=tk.Variable(value=all_items))
+    listbox.yview(0)
     items = all_items
 
 def custom_category_formatting(formatted_item):
@@ -154,7 +154,6 @@ def process_values(values, category):
         return values
 
 def format_ylabel(formatted_item, category):
-    print(category)
     if category == "Dropped":
         return "Items Dropped"
     elif category == "Crafted":
@@ -256,7 +255,7 @@ def format_ylabel(formatted_item, category):
 
 def plot_data(event):
     global player_dict, player_uuids, message, dropdown, bar_color
-    fig, ax = plt.subplots(num="Minecraft Stats Viewer")
+    plt.figure()
     players = []
     values = []
     item = message.cget("text")
@@ -280,21 +279,21 @@ def plot_data(event):
     }
 
     processed_values = process_values(values, formatted_item)
-    print(f"Values: {processed_values}")
+    # print(f"Values: {processed_values}")
     ylabel = format_ylabel(formatted_item, category)
 
-    bars = ax.bar(players, processed_values, color=bar_color)
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel("Player")
-    ax.set_title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category}") + " By Player")
-    ax.tick_params(axis='x', labelsize=8)
-    ax.get_yaxis().set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+    bars = plt.bar(players, processed_values, color=bar_color)
+    plt.ylabel(ylabel)
+    plt.xlabel("Player")
+    plt.title(title_categories.get(category, f"Number of {formatted_item}{extra_s} {category}") + " By Player")
+    plt.tick_params(axis='x', labelsize=8)
+    plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
 
     # Adding numbers to top of bar
 
     for bar in bars:
         yheight = bar.get_height()
-        plt.text(bar.get_x() + (bar.get_width() / 2), yheight + 0.1, yheight, horizontalalignment="center", fontsize=12)
+        plt.text(bar.get_x() + (bar.get_width() / 2), yheight + 0.005, yheight, horizontalalignment="center", fontsize=12)
 
     plt.show()
 
@@ -396,8 +395,6 @@ def main():
     plot_button = tk.Button(window, text="Plot Data")
     plot_button.bind("<ButtonRelease>", plot_data)
     plot_button.pack()
-
-    # window.grid_rowconfigure(1, weight=0)
 
     window.mainloop()
 
